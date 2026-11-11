@@ -1,0 +1,66 @@
+groups:
+  - name: atentis
+    rules:
+      - alert: AtentisServiceDown
+        expr: up{job="atentis"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "AtentisServer не отвечает ({{ $labels.instance }})"
+          description: "Метрики недоступны 2 минуты: служба остановлена, зависла или недоступна сеть."
+
+      - alert: AtentisServiceRestarting
+        expr: changes(process_start_time_seconds{job="atentis"}[1h]) > 2
+        labels: { severity: warning }
+        annotations:
+          summary: "AtentisServer перезапускался {{ $value }} раз за час"
+          description: "Служба падает и поднимается автоматически. Смотрите журнал Windows (Application, AtentisServer) и логи."
+
+      - alert: AtentisSlotDisconnected
+        expr: atentis_slot_connected == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Слот {{ $labels.slot }} без соединения с Atentis"
+          description: "Нет соединения дольше 5 минут. Если сервер Atentis ночью недоступен - увеличьте 'for' или добавьте окно тишины."
+
+      - alert: AtentisFrequentReconnects
+        expr: increase(atentis_slot_reconnects[1h]) > 3
+        labels: { severity: warning }
+        annotations:
+          summary: "Слот {{ $labels.slot }} пересоздавался {{ $value }} раз за час"
+
+      - alert: AtentisDatabaseDown
+        expr: atentis_db_up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "AtentisServer не может писать в PostgreSQL"
+          description: "Данные накапливаются в Atentis и будут дозаписаны после восстановления БД (дубли исключены), но проверьте PostgreSQL."
+
+      - alert: AtentisDatabaseWriteErrors
+        expr: increase(atentis_db_errors_total[10m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Ошибки записи в PostgreSQL ({{ $labels.target }})"
+
+      - alert: AtentisRowsSkipped
+        expr: increase(atentis_rows_skipped_total[30m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Пропущены строки с некорректными данными: {{ $labels.slot }}/{{ $labels.table }} ({{ $labels.reason }})"
+          description: "Формат данных Atentis изменился или в таблице неожиданные значения. Подробности - в логе (WRN)."
+
+      - alert: AtentisSlowDatabaseWrites
+        expr: histogram_quantile(0.95, sum by (le, target) (rate(atentis_db_write_duration_seconds_bucket[10m]))) > 2
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "p95 записи в PostgreSQL ({{ $labels.target }}) больше 2 с"
+
+      - alert: AtentisWindowsServiceStopped
+        expr: windows_service_state{name="atentisserver", state="running"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Служба Windows AtentisServer не в состоянии Running"

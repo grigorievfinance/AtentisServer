@@ -1,69 +1,38 @@
-# Prerequisites
-*.d
+# Build output
+bin/
+obj/
+publish/
+artifacts/
+*.nupkg
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
 
-# Precompiled Headers
-*.gch
-*.pch
+# Test results
+TestResults/
+*.trx
+coverage*/
 
-# Linker files
-*.ilk
+# Local configuration and secrets -- NEVER commit
+appsettings.local.json
+appsettings.*.local.json
+secrets.json
+*.secrets.json
+.env
+*.pfx
+*.key
 
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
-build/
-Build/
-build-*/
-
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
-
-# Temporary files
-*.tmp
+# Logs and runtime data
+logs/
 *.log
-*.bak
-*.swp
 
-# vcpkg
-vcpkg_installed/
+# OS
+Thumbs.db
+.DS_Store
 
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+# Разрешаем закоммитить нужную стороннюю библиотеку Atentis
+!lib/Atentis.Connection.dll

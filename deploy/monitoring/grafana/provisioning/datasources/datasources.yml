@@ -1,0 +1,29 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+
+  # Только чтение! Используется роль atentis_reader (см. deploy/postgres/setup-roles.sql).
+  - name: Atentis PostgreSQL
+    uid: atentis-pg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: ${ATENTIS_PG_HOST}
+    user: atentis_reader
+    jsonData:
+      database: atentis
+      sslmode: require
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: ${ATENTIS_PG_READER_PASSWORD}
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
