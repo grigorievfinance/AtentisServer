@@ -1,0 +1,32 @@
+// Grafana Alloy на сервере с AtentisServer (Windows): читает JSON-логи сервиса и отправляет в Loki.
+// Установка: https://grafana.com/docs/alloy/latest/set-up/install/windows/  -> положить этот файл в конфигурацию Alloy.
+
+local.file_match "atentis" {
+  path_targets = [{
+    __path__ = "C:\\ProgramData\\AtentisServer\\logs\\atentis-*.json",
+    job      = "atentis",
+    host     = sys.env("COMPUTERNAME"),
+  }]
+}
+
+loki.process "atentis" {
+  forward_to = [loki.write.default.receiver]
+
+  // Compact JSON (Serilog): @t - время, @l - уровень (отсутствует у Information), @m - сообщение.
+  stage.json {
+    expressions = { level = "@l", ts = "@t" }
+  }
+  stage.labels { values = { level = "" } }
+  stage.timestamp { source = "ts", format = "RFC3339Nano" }
+}
+
+loki.source.file "atentis" {
+  targets    = local.file_match.atentis.targets
+  forward_to = [loki.process.atentis.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki.example.local:3100/loki/api/v1/push"
+  }
+}

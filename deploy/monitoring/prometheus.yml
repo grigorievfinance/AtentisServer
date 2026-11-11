@@ -1,0 +1,25 @@
+# Prometheus для AtentisServer. Запускается на сервере мониторинга (или на этом же сервере).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']   # уберите блок, если Alertmanager не используется
+
+scrape_configs:
+  # Метрики самого сервиса: http://<хост>:9464/metrics (по умолчанию слушает только 127.0.0.1 -
+  # для удалённого сбора измените Monitoring:Url и откройте порт в Windows Firewall только для сервера Prometheus).
+  - job_name: atentis
+    static_configs:
+      - targets: ['atentis-server.example.local:9464']
+
+  # Системные метрики Windows Server (CPU, диск, память, состояние служб): https://github.com/prometheus-community/windows_exporter
+  # Установка:  msiexec /i windows_exporter.msi ENABLED_COLLECTORS=cpu,memory,logical_disk,net,os,service,process
+  - job_name: windows
+    static_configs:
+      - targets: ['atentis-server.example.local:9182']
