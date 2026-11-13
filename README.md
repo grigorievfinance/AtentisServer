@@ -8,7 +8,7 @@
 
 | | |
 |---|---|
-| Платформа | .NET 10 Worker Service, Windows Server 2019+ (также запускается на Linux для разработки) |
+| Платформа | .NET 8 Worker Service (LTS-линейка, совместима с Atentis.Connection), Windows Server 2019+ (также запускается на Linux для разработки) |
 | Запуск | Служба Windows: автозапуск, авто-перезапуск при сбое, без интерфейса и без ручных действий |
 | Данные | Atentis (`Atentis.Connection` 8.0, слоты MICEX и FORTS) → PostgreSQL |
 | Мониторинг | Prometheus `/metrics`, health-check, таблица статуса в PostgreSQL, структурированные логи → Grafana (+ Loki) |
@@ -49,7 +49,7 @@ StatusLoop:     метрики Prometheus + atentis.collector_status
 Нужны: сервер PostgreSQL 12+ (на этом или другом хосте) и PowerShell 5.1 от имени администратора.
 
 ```powershell
-# 1. На машине с .NET SDK 10: собрать самодостаточный релиз (на сервер .NET ставить не нужно)
+# 1. На машине с .NET SDK 8.0 (или новее): собрать самодостаточный релиз (на сервер .NET ставить не нужно)
 .\deploy\publish.ps1
 
 # 2. В PostgreSQL (под postgres): создать БД и роли — отредактируйте пароли в файле
