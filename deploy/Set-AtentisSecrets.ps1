@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Интерактивно запрашивает пароли и строку подключения к PostgreSQL и сохраняет их как переменные окружения

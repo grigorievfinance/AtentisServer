@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Устанавливает AtentisServer как службу Windows (Windows Server 2019+): автозапуск, авто-перезапуск при сбое,
