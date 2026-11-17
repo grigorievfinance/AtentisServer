@@ -2,12 +2,15 @@
 <#
 .SYNOPSIS
   Устанавливает AtentisServer как службу Windows (Windows Server 2019+): автозапуск, авто-перезапуск при сбое,
-  запуск под виртуальной учётной записью с минимальными правами, секреты - в защищённом реестре службы.
+  запуск под виртуальной учётной записью с минимальными правами.
+  ВСЕ настройки (строка подключения к PostgreSQL, адреса/логины/пароли Atentis) хранятся в одном файле
+  %ProgramData%\AtentisServer\appsettings.local.json, который служба читает при каждом запуске.
+  Файл создаётся из шаблона один раз и дальше никогда не перезаписывается; права на него - только SYSTEM, Administrators и служба.
 
 .PARAMETER SourceDir   Папка с результатом publish.ps1.
 .PARAMETER InstallDir  Куда копировать программу.
 .PARAMETER DependsOn   Необязательно: имя службы PostgreSQL на этом же сервере (например postgresql-x64-16) - AtentisServer будет стартовать после неё.
-.PARAMETER SkipSecrets Не запрашивать пароли (если они уже заданы).
+.PARAMETER PromptSecrets Устаревший способ: дополнительно запросить пароли и сохранить их в переменных окружения службы (файл настроек всё равно имеет приоритет).
 
 .EXAMPLE
   .\install-service.ps1 -SourceDir ..\publish\AtentisServer
@@ -17,12 +20,14 @@ param(
     [Parameter(Mandatory)][string]$SourceDir,
     [string]$InstallDir = 'C:\Program Files\AtentisServer',
     [string]$DependsOn = '',
-    [switch]$SkipSecrets
+    [switch]$PromptSecrets
 )
 $ErrorActionPreference = 'Stop'
 $ServiceName = 'AtentisServer'
 $DataDir = Join-Path $env:ProgramData 'AtentisServer'
 $ServiceAccount = "NT SERVICE\$ServiceName"
+$SettingsFile = Join-Path $DataDir 'appsettings.local.json'
+$SettingsTemplate = Join-Path $PSScriptRoot 'appsettings.local.template.json'
 
 if (-not (Test-Path (Join-Path $SourceDir 'AtentisServer.exe'))) {
     throw "В '$SourceDir' нет AtentisServer.exe. Сначала выполните deploy\publish.ps1."
@@ -68,12 +73,39 @@ sc.exe failureflag $ServiceName 1 | Out-Null     # считать сбоем и 
 icacls $InstallDir /grant:r "${ServiceAccount}:(OI)(CI)RX" | Out-Null
 icacls $DataDir /grant:r "${ServiceAccount}:(OI)(CI)M" | Out-Null
 
-# 8. Секреты
-if (-not $SkipSecrets) {
+# 8. Файл настроек (создаётся один раз из шаблона, существующий НЕ перезаписывается)
+$settingsCreated = $false
+if (-not (Test-Path $SettingsFile)) {
+    if (-not (Test-Path $SettingsTemplate)) { throw "Не найден шаблон настроек: $SettingsTemplate" }
+    Copy-Item $SettingsTemplate $SettingsFile
+    $settingsCreated = $true
+}
+# Права на файл: он может содержать пароли. SYSTEM и Administrators - полный доступ, служба - только чтение, остальным нет доступа.
+icacls $SettingsFile /inheritance:r | Out-Null
+icacls $SettingsFile /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' "${ServiceAccount}:R" | Out-Null
+
+if ($PromptSecrets) {
     & (Join-Path $PSScriptRoot 'Set-AtentisSecrets.ps1')
+}
+
+$envValue = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName" -Name Environment -ErrorAction SilentlyContinue).Environment
+if ($envValue) {
+    Write-Warning "У службы заданы переменные окружения (от прежней установки). Значения из файла настроек имеют приоритет над ними."
+}
+
+if ($settingsCreated) {
+    Write-Host ""
+    Write-Host "Создан файл настроек: $SettingsFile" -ForegroundColor Yellow
+    Write-Host "1) Откройте его (notepad `"$SettingsFile`" от имени администратора) и заполните:" -ForegroundColor Yellow
+    Write-Host "   строку подключения PostgreSQL, Server/Port/Login/Password для слотов MICEX и FORTS." -ForegroundColor Yellow
+    Write-Host "2) Запустите службу:  Start-Service $ServiceName" -ForegroundColor Yellow
+    Write-Host "Служба НЕ запущена, пока файл не заполнен. Изменения в файле применяются при перезапуске: Restart-Service $ServiceName" -ForegroundColor Yellow
+    Get-Service $ServiceName | Format-Table Name, Status, StartType -AutoSize
+    return
 }
 
 Start-Service $ServiceName
 Start-Sleep -Seconds 5
 Get-Service $ServiceName | Format-Table Name, Status, StartType -AutoSize
+Write-Host "Файл настроек: $SettingsFile (применяется при перезапуске службы)"
 Write-Host "Проверка: Invoke-RestMethod http://127.0.0.1:9464/health/ready ; логи: $DataDir\logs"

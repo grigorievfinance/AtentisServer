@@ -28,7 +28,7 @@ public sealed class CollectorOptionsValidator : IValidateOptions<CollectorOption
             if (s.Port is < 1 or > 65535) errors.Add($"{p}:Port вне диапазона 1..65535.");
             if (string.IsNullOrWhiteSpace(s.Login)) errors.Add($"{p}:Login не задан.");
             if (string.IsNullOrEmpty(s.Password))
-                errors.Add($"{p}:Password не задан (задайте переменной окружения Collector__Slots__{i}__Password, не в appsettings.json).");
+                errors.Add($"{p}:Password не задан (укажите в файле настроек appsettings.local.json, раздел Collector -> Slots).");
             if (s.RefreshPeriodMs is < 100 or > 60000) errors.Add($"{p}:RefreshPeriodMs вне диапазона 100..60000.");
         }
 

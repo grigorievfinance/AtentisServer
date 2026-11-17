@@ -37,11 +37,9 @@ try
         ContentRootPath = AppContext.BaseDirectory
     });
 
-    // Конфигурация: appsettings.json -> %ProgramData%\AtentisServer\appsettings.local.json -> переменные окружения -> аргументы.
-    // Секреты (пароли) - только в переменных окружения службы или в appsettings.local.json с ACL, но не в репозитории.
-    builder.Configuration.AddJsonFile(Path.Combine(dataDir, "appsettings.local.json"), optional: true, reloadOnChange: false);
-    builder.Configuration.AddEnvironmentVariables();
-    builder.Configuration.AddCommandLine(args);
+    // Конфигурация: appsettings.json -> переменные окружения -> файл настроек %ProgramData%\AtentisServer\appsettings.local.json -> аргументы.
+    // Файл настроек читается при каждом запуске службы; в нём можно хранить ВСЕ параметры, включая пароли (доступ ограничен ACL).
+    AppConfiguration.AddLocalSources(builder.Configuration, dataDir, args);
 
     builder.Host.UseWindowsService(o => o.ServiceName = "AtentisServer");
 
@@ -78,7 +76,7 @@ try
 
     var connectionString = builder.Configuration.GetConnectionString("Postgres");
     if (string.IsNullOrWhiteSpace(connectionString))
-        throw new InvalidOperationException("Не задана строка подключения ConnectionStrings:Postgres (переменная окружения ConnectionStrings__Postgres).");
+        throw new InvalidOperationException($"Не задана строка подключения ConnectionStrings:Postgres. Укажите её в файле настроек: {AppConfiguration.LocalFilePath(dataDir)}");
     var csb = new NpgsqlConnectionStringBuilder(connectionString) { ApplicationName = "AtentisServer" };
     builder.Services.AddSingleton(_ => new NpgsqlDataSourceBuilder(csb.ConnectionString).Build());
 
@@ -99,6 +97,12 @@ try
     builder.WebHost.UseUrls(monitoring.Url);
 
     var app = builder.Build();
+
+    var settingsFile = AppConfiguration.LocalFilePath(dataDir);
+    if (File.Exists(settingsFile))
+        Log.Information("Файл настроек загружен: {SettingsFile}", settingsFile);
+    else
+        Log.Warning("Файл настроек не найден: {SettingsFile}. Используются только appsettings.json и переменные окружения", settingsFile);
 
     app.MapMetrics("/metrics");
     app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });

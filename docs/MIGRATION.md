@@ -4,7 +4,7 @@
 
 | Было (`AtentisConnector`) | Стало (`AtentisServer`) |
 |---|---|
-| Окно ввода логина/пароля, `settings.json` | `appsettings.json` / `appsettings.local.json` (адреса, логины) + переменные окружения службы (пароли) |
+| Окно ввода логина/пароля, `settings.json` | Один файл настроек `%ProgramData%\AtentisServer\appsettings.local.json` (адреса, логины, пароли, строка подключения), читается при каждом запуске службы |
 | Слоты `MICEXSlot`, `FORTSSlot` | `Collector:Slots` — `MICEX`/`SPOT`, `FORTS`/`FUT` (имя слота пишется в `slot_id`, рынок — в `market`) |
 | SQLite `C:\AtentisData\database\Database.db`, CSV | PostgreSQL, схема `atentis` |
 | `trades(TradeNo, OrderNo, TimeDeal, Symbol, SecSymbol, Price, Quantity, …)` | `atentis.trades` — `real_trade_no`, `order_no`, `trade_time`, `sec_code` (=`Symbol`), `sec_board` (=`SecSymbol`), `price`, `value`, `quantity`, `commission`, `clearing_commission`, `exchange_commission`, `account` … |
