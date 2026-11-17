@@ -55,25 +55,36 @@ StatusLoop:     метрики Prometheus + atentis.collector_status
 # 2. В PostgreSQL (под postgres): создать БД и роли — отредактируйте пароли в файле
 psql -U postgres -f deploy\postgres\setup-roles.sql
 
-# 3. На сервере: установить службу (спросит строку подключения к БД и пароли Atentis)
+# 3. На сервере (PowerShell от администратора): установить службу.
+#    Скрипт создаёт файл настроек %ProgramData%\AtentisServer\appsettings.local.json из шаблона и НЕ запускает службу.
 .\deploy\install-service.ps1 -SourceDir .\publish\AtentisServer
 
-# 4. Адреса/логины Atentis (не пароли!) — в %ProgramData%\AtentisServer\appsettings.local.json, затем:
-Restart-Service AtentisServer
+# 4. Заполнить файл настроек (строка подключения PostgreSQL, адреса, логины и пароли Atentis) и запустить службу
+notepad "$env:ProgramData\AtentisServer\appsettings.local.json"
+Start-Service AtentisServer
 ```
 
-`appsettings.local.json` (пример) — переопределяет значения из `appsettings.json`:
+Все настройки лежат в **одном файле** — [`deploy/appsettings.local.template.json`](deploy/appsettings.local.template.json)
+(копируется в `%ProgramData%\AtentisServer\appsettings.local.json`). Служба читает его **при каждом запуске**:
+изменили файл → `Restart-Service AtentisServer`. Существующий файл установщик никогда не перезаписывает, поэтому
+обновление программы настройки не затрагивает.
 
-```json
+```jsonc
 {
+  "ConnectionStrings": {
+    "Postgres": "Host=db.example.local;Port=5432;Database=atentis;Username=atentis_app;Password=...;SSL Mode=VerifyFull"
+  },
   "Collector": {
     "Slots": [
-      { "Name": "MICEX", "Market": "SPOT", "Server": "10.0.0.1", "Port": 7800, "Login": "user1" },
-      { "Name": "FORTS", "Market": "FUT",  "Server": "10.0.0.2", "Port": 7800, "Login": "user2" }
+      { "Name": "MICEX", "Market": "SPOT", "Enabled": true, "Server": "10.0.0.1", "Port": 7800, "Login": "user1", "Password": "..." },
+      { "Name": "FORTS", "Market": "FUT",  "Enabled": true, "Server": "10.0.0.2", "Port": 7800, "Login": "user2", "Password": "..." }
     ]
   }
 }
 ```
+
+В файле допустимы комментарии `//`. Если какое-то поле пропущено или неверно, служба не запустится и в логе
+(`%ProgramData%\AtentisServer\logs`) и журнале Windows будет сказано, какое именно.
 
 Проверка:
 
@@ -92,14 +103,17 @@ Get-Content "$env:ProgramData\AtentisServer\logs\atentis-*.log" -Tail 50
 5. Остановить `Stop-Service` и снова `Start-Service` — дубликатов в `atentis.trades` быть не должно.
 6. Принудительно убить процесс (`Stop-Process -Name AtentisServer -Force`) — через ~5 с служба должна подняться сама.
 
-Обновление: остановить не нужно — `install-service.ps1` сам останавливает службу, копирует файлы и запускает её;
-`-SkipSecrets` оставляет прежние пароли. Удаление: `deploy\uninstall-service.ps1`.
+Обновление: `install-service.ps1` сам останавливает службу, копирует файлы и запускает её; файл настроек не трогается.
+Удаление: `deploy\uninstall-service.ps1`.
 
 ## Конфигурация
 
-Порядок (последнее побеждает): `appsettings.json` → `%ProgramData%\AtentisServer\appsettings.local.json` →
-переменные окружения → аргументы командной строки. Пароли и строка подключения хранятся **только в переменных окружения
-службы** (реестр, доступ администраторам/SYSTEM) — их записывает `deploy\Set-AtentisSecrets.ps1`.
+Порядок (последнее побеждает): `appsettings.json` (рядом с программой, значения по умолчанию) → переменные окружения →
+**файл настроек `%ProgramData%\AtentisServer\appsettings.local.json`** → аргументы командной строки.
+Файл настроек выше переменных окружения: что написано в файле, то и действует. Права на него (только SYSTEM,
+Administrators и служба) выдаёт `install-service.ps1`, т.к. в нём пароли открытым текстом. Другое расположение
+каталога данных — переменная `ATENTIS_DATA_DIR`. Переменные окружения (`Collector__Slots__0__Password=…`,
+`ConnectionStrings__Postgres=…`) по-прежнему работают для ключей, которых нет в файле.
 
 | Параметр | По умолчанию | Описание |
 |---|---|---|
@@ -111,7 +125,6 @@ Get-Content "$env:ProgramData\AtentisServer\logs\atentis-*.log" -Tail 50
 | `Collector:FullSyncIntervalSeconds` | 300 | Страховочная полная синхронизация (0 = выкл) |
 | `Monitoring:Url` | `http://127.0.0.1:9464` | Метрики и health-check (по умолчанию только localhost) |
 
-Переменные окружения: `Collector__Slots__0__Password=…`, `ConnectionStrings__Postgres=…`.
 
 ## Разработка и тесты
 

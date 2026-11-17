@@ -1,6 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
+  НЕОБЯЗАТЕЛЬНО (устаревший способ; основной - файл настроек appsettings.local.json, он приоритетнее).
   Интерактивно запрашивает пароли и строку подключения к PostgreSQL и сохраняет их как переменные окружения
   ТОЛЬКО для службы AtentisServer (HKLM\SYSTEM\CurrentControlSet\Services\AtentisServer\Environment).
   Этот раздел реестра доступен только администраторам и SYSTEM. Пароли не попадают ни в файлы, ни в историю команд, ни в лог.
