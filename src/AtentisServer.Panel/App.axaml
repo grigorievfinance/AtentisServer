@@ -1,0 +1,110 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AtentisServer.Panel.App"
+             RequestedThemeVariant="Light">
+
+  <Application.Resources>
+    <!-- Фирменный синий вместо стандартного акцента Windows (переключатели, фокус, выделение) -->
+    <Color x:Key="SystemAccentColor">#2563EB</Color>
+    <Color x:Key="SystemAccentColorDark1">#1D4ED8</Color>
+    <Color x:Key="SystemAccentColorDark2">#1E40AF</Color>
+    <Color x:Key="SystemAccentColorLight1">#3B82F6</Color>
+    <Color x:Key="SystemAccentColorLight2">#60A5FA</Color>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- Общий вид -->
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Inter, Segoe UI, Arial" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Background" Value="#F3F5F9" />
+    </Style>
+
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="#101828" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#101828" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#667085" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#344054" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <!-- Карточки -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#E4E8F0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="BoxShadow" Value="0 1 3 0 #14000000" />
+    </Style>
+
+    <!-- Индикатор состояния -->
+    <Style Selector="Border.pill">
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="11,5" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+
+    <!-- Поля ввода -->
+    <Style Selector="TextBox">
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#D0D5DD" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+
+    <!-- Кнопки -->
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="18,10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#2563EB" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1D4ED8" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#93B4F5" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="Foreground" Value="#344054" />
+      <Setter Property="BorderBrush" Value="#D0D5DD" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#B42318" />
+      <Setter Property="Padding" Value="0,4" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+  </Application.Styles>
+</Application>

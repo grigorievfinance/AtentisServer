@@ -10,8 +10,10 @@ public sealed class DatabaseHealthCheck : IHealthCheck
     public DatabaseHealthCheck(CollectorState state) => _state = state;
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default) =>
-        Task.FromResult(!_state.DatabaseReady
-            ? HealthCheckResult.Unhealthy("Схема PostgreSQL ещё не инициализирована")
+        Task.FromResult(!_state.DatabaseConfigured
+            ? HealthCheckResult.Degraded("База данных ещё не настроена (откройте «Панель управления»)")
+            : !_state.DatabaseReady
+            ? HealthCheckResult.Unhealthy("Схема PostgreSQL ещё не инициализирована: " + _state.DatabaseMessage)
             : _state.DatabaseUp
                 ? HealthCheckResult.Healthy("PostgreSQL доступен")
                 : HealthCheckResult.Unhealthy("Последняя запись в PostgreSQL завершилась ошибкой"));
@@ -25,8 +27,9 @@ public sealed class SlotsHealthCheck : IHealthCheck
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)
     {
-        var data = _state.Slots.ToDictionary(s => s.Name, s => (object)(s.IsConnected ? "connected" : "disconnected"));
-        var down = _state.Slots.Where(s => !s.IsConnected).Select(s => s.Name).ToList();
+        var slots = _state.Slots.Snapshot();
+        var data = slots.ToDictionary(s => s.Name, s => (object)(s.IsConnected ? "connected" : "disconnected"));
+        var down = slots.Where(s => !s.IsConnected).Select(s => s.Name).ToList();
         return Task.FromResult(down.Count == 0
             ? HealthCheckResult.Healthy("Все слоты подключены", data)
             : HealthCheckResult.Degraded("Нет соединения: " + string.Join(", ", down), data: data));

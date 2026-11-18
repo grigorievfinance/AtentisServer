@@ -17,6 +17,9 @@ public static class AppMetrics
     public static readonly Gauge SlotReconnects = Metrics.CreateGauge(
         "atentis_slot_reconnects", "Число пересозданий слота с момента старта сервиса.", SlotLabel);
 
+    public static readonly Gauge SlotWaitingForPassword = Metrics.CreateGauge(
+        "atentis_slot_waiting_for_password", "1 - слот настроен, но ждёт ввода пароля Atentis (после перезапуска службы пароли вводят заново).", SlotLabel);
+
     public static readonly Counter TableUpdates = Metrics.CreateCounter(
         "atentis_table_updates_total", "Получено обновлений таблиц от Atentis.", SlotTable);
 

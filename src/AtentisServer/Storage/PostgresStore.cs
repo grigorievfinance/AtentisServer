@@ -14,13 +14,14 @@ namespace AtentisServer.Storage;
 /// </summary>
 public sealed class PostgresStore : IDataStore
 {
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly NpgsqlDataSourceProvider _provider;
+    private NpgsqlDataSource _dataSource => _provider.Require();
     private readonly int _timeoutSeconds;
     private readonly ILogger<PostgresStore> _log;
 
-    public PostgresStore(NpgsqlDataSource dataSource, IOptions<DatabaseOptions> options, ILogger<PostgresStore> log)
+    public PostgresStore(NpgsqlDataSourceProvider provider, IOptions<DatabaseOptions> options, ILogger<PostgresStore> log)
     {
-        _dataSource = dataSource;
+        _provider = provider;
         _timeoutSeconds = options.Value.CommandTimeoutSeconds;
         _log = log;
     }
@@ -207,6 +208,7 @@ public sealed class PostgresStore : IDataStore
             await cmd.ExecuteScalarAsync(ct);
             return true;
         }
+        catch (DatabaseNotConfiguredException) { return false; }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _log.LogWarning(ex, "PostgreSQL недоступен");

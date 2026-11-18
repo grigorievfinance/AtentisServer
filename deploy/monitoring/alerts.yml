@@ -24,6 +24,14 @@ groups:
           summary: "Слот {{ $labels.slot }} без соединения с Atentis"
           description: "Нет соединения дольше 5 минут. Если сервер Atentis ночью недоступен - увеличьте 'for' или добавьте окно тишины."
 
+      - alert: AtentisWaitingForPassword
+        expr: atentis_slot_waiting_for_password == 1
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "Рынок {{ $labels.slot }} ждёт пароль Atentis уже 10 минут"
+          description: "Служба перезапускалась (или сервер перезагружен), пароли Atentis хранятся только в памяти. Откройте «Панель управления» и введите пароль, иначе данные не собираются."
+
       - alert: AtentisFrequentReconnects
         expr: increase(atentis_slot_reconnects[1h]) > 3
         labels: { severity: warning }

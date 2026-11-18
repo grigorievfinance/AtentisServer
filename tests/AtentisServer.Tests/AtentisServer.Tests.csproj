@@ -11,9 +11,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\deploy\appsettings.local.template.json" Link="template\appsettings.local.template.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\src\AtentisServer\AtentisServer.csproj" />
+    <ProjectReference Include="..\..\src\AtentisServer.Contracts\AtentisServer.Contracts.csproj" />
   </ItemGroup>
 </Project>

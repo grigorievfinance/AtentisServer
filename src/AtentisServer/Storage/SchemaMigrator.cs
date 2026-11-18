@@ -11,18 +11,18 @@ public sealed class SchemaMigrator
 {
     private const long AdvisoryLockKey = 0x41544E54_4953; // "ATNTIS"
 
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly NpgsqlDataSourceProvider _provider;
     private readonly ILogger<SchemaMigrator> _log;
 
-    public SchemaMigrator(NpgsqlDataSource dataSource, ILogger<SchemaMigrator> log)
+    public SchemaMigrator(NpgsqlDataSourceProvider provider, ILogger<SchemaMigrator> log)
     {
-        _dataSource = dataSource;
+        _provider = provider;
         _log = log;
     }
 
     public async Task MigrateAsync(CancellationToken ct)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var conn = await _provider.Require().OpenConnectionAsync(ct);
         await Exec(conn, "SELECT pg_advisory_lock(@k)", ct, ("k", AdvisoryLockKey));
         try
         {

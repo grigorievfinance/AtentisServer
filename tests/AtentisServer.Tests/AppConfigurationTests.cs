@@ -74,38 +74,4 @@ public sealed class AppConfigurationTests : IDisposable
         var cfg = Build("{}", new[] { "--Monitoring:Url=http://cli:2" });
         Assert.Equal("http://cli:2", cfg["Monitoring:Url"]);
     }
-
-    [Fact]
-    public void Shipped_template_parses_with_comments_and_is_rejected_until_filled_in()
-    {
-        var template = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "template", "appsettings.local.template.json"));
-        WriteLocal(template);
-        var cfg = Build(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "appsettings.json")));
-        var opts = cfg.GetSection(CollectorOptions.SectionName).Get<CollectorOptions>()!;
-
-        // шаблон читается, несмотря на комментарии, и по умолчанию НЕ проходит проверку: Server/Port/Login/Password пустые
-        var result = new CollectorOptionsValidator().Validate(null, opts);
-        Assert.True(result.Failed);
-        Assert.Contains("Password", string.Join(";", result.Failures!));
-        Assert.Equal("MICEX", opts.Slots[0].Name);
-        Assert.Contains("Host=localhost", cfg.GetConnectionString("Postgres"));
-    }
-
-    [Fact]
-    public void Template_filled_in_by_the_user_passes_validation()
-    {
-        var template = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "template", "appsettings.local.template.json"));
-        template = template.Replace("\"Server\": \"\"", "\"Server\": \"10.0.0.1\"")
-                           .Replace("\"Port\": 0", "\"Port\": 7800")
-                           .Replace("\"Login\": \"\"", "\"Login\": \"user\"")
-                           .Replace("\"Password\": \"\"", "\"Password\": \"p@ss;word\"");
-        WriteLocal(template);
-        var cfg = Build(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "appsettings.json")));
-        var opts = cfg.GetSection(CollectorOptions.SectionName).Get<CollectorOptions>()!;
-
-        Assert.True(new CollectorOptionsValidator().Validate(null, opts).Succeeded);
-        Assert.Equal(2, opts.Slots.Count);
-        Assert.Equal("p@ss;word", opts.Slots[1].Password);
-        Assert.Equal(5, opts.Tables.Count);          // таблицы из appsettings.json остались
-    }
 }
