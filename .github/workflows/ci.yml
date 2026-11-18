@@ -81,4 +81,12 @@ jobs:
       - name: Опубликовать релиз с установщиком
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" installer/*.exe --repo "${{ github.repository }}" --title "Atentis Server ${{ github.ref_name }}" --generate-notes
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Релиз мог быть уже создан кнопкой на сайте GitHub (тогда тег появился вместе с ним) - тогда просто прикладываем установщик.
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" installer/*.exe --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" installer/*.exe --repo "$REPO" --title "Atentis Server $TAG" --generate-notes
+          fi

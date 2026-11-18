@@ -54,8 +54,11 @@ StatusLoop:     метрики Prometheus + atentis.collector_status
 
 Нужны: сервер PostgreSQL 12+ (на этом или другом хосте). Ставить .NET на сервер **не нужно**.
 
-**1. Получить установщик** `AtentisServer-Setup-x.y.z.exe`: вкладка *Releases* репозитория (после создания тега `vX.Y.Z`)
-или артефакт `AtentisServer-Setup` у последней успешной сборки во вкладке *Actions*. Либо собрать самому на машине с
+**1. Получить установщик** `AtentisServer-Setup-x.y.z.exe`:
+* быстро: вкладка *Actions* → последний зелёный запуск **CI** → внизу страницы *Artifacts* → `AtentisServer-Setup` (zip с установщиком;
+  хранится 90 дней);
+* постоянно, во вкладке *Releases*: *Releases → Draft a new release → Choose a tag → ввести `v4.1.0` → Create new tag → Publish release*.
+  Сборка запустится сама (около 4 минут) и приложит установщик к этому релизу. То же из командной строки: `git tag v4.1.0 && git push origin v4.1.0`. Либо собрать самому на машине с
 .NET SDK 8.0 и [Inno Setup 6](https://jrsoftware.org/isdl.php): `.\deploy\publish.ps1` → `publish\installer\`.
 
 **2. Установить** (пользователь-администратор). Мастер спросит, кто будет работать с программой: укажите пользователей
