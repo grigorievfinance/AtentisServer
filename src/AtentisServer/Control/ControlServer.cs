@@ -116,7 +116,7 @@ public sealed class ControlServer : BackgroundService
                 await pipe.WriteAsync(payload, cts.Token);
                 await pipe.WriteAsync(new byte[] { (byte)'\n' }, cts.Token);
                 await pipe.FlushAsync(cts.Token);
-                try { pipe.WaitForPipeDrain(); } catch (PlatformNotSupportedException) { }
+                if (OperatingSystem.IsWindows()) pipe.WaitForPipeDrain();   // дождаться, пока клиент прочитает ответ
             }
             catch (Exception ex) when (ex is OperationCanceledException or IOException or JsonException)
             {
