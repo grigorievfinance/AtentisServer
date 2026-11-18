@@ -119,12 +119,14 @@ try {
 
     Step 'Любой пользователь сервера (не администратор) может управлять службой'
     $testUser = 'atentis_user1'
-    $testPass = 'Aa1!' + [guid]::NewGuid().ToString('N')
+    # Не длиннее 14 символов: иначе net user задаёт интерактивный вопрос, а в CI отвечать некому.
+    $testPass = 'Aa1!' + [guid]::NewGuid().ToString('N').Substring(0, 10)
     $UserSecret = 'USER-TYPED-SECRET-55'
     $work = Join-Path $env:SystemDrive 'atentis-ci'
     New-Item -ItemType Directory -Force -Path $work | Out-Null
     icacls $work /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
     net user $testUser $testPass /add | Out-Null
+    Check ($LASTEXITCODE -eq 0) 'тестовый пользователь без прав администратора создан'
     try {
         $userScript = @'
 $ErrorActionPreference = 'Stop'
