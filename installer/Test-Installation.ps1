@@ -39,7 +39,9 @@ function Invoke-Control($request) {
 function Wait-Until([scriptblock]$condition, [int]$seconds, [string]$what) {
     $deadline = (Get-Date).AddSeconds($seconds)
     while ((Get-Date) -lt $deadline) {
-        try { if (& $condition) { return $true } } catch { }
+        $ok = $false
+        try { $ok = [bool](& $condition) } catch { }
+        if ($ok) { return }
         Start-Sleep -Milliseconds 700
     }
     throw "ПРОВАЛ: не дождались: $what (за $seconds с)"
@@ -142,6 +144,9 @@ try {
     Check ($groupGone -match '(не найден|does not exist|2220)') 'группа операторов удалена'
 
     Write-Host "`nВСЕ ПРОВЕРКИ УСТАНОВЩИКА ПРОЙДЕНЫ" -ForegroundColor Green
+    # Последняя нативная команда (net localgroup для уже удалённой группы) оставила ненулевой код - он не должен ронять шаг CI.
+    $global:LASTEXITCODE = 0
+    exit 0
 }
 catch {
     Write-Host "`n$_" -ForegroundColor Red
