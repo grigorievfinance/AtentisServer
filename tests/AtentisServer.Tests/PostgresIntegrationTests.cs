@@ -16,18 +16,20 @@ public sealed class PostgresFixture : IAsyncLifetime
 {
     public static readonly string? ConnectionString = Environment.GetEnvironmentVariable("ATENTIS_TEST_PG");
     public NpgsqlDataSource? DataSource { get; private set; }
+    public NpgsqlDataSourceProvider? Provider { get; private set; }
     public PostgresStore? Store { get; private set; }
 
     public async Task InitializeAsync()
     {
         if (ConnectionString is null) return;
-        DataSource = NpgsqlDataSource.Create(ConnectionString);
+        Provider = new NpgsqlDataSourceProvider(ConnectionString);
+        DataSource = Provider.Require();
         await using (var cmd = DataSource.CreateCommand("DROP SCHEMA IF EXISTS atentis CASCADE")) await cmd.ExecuteNonQueryAsync();
-        await new SchemaMigrator(DataSource, NullLogger<SchemaMigrator>.Instance).MigrateAsync(default);
-        Store = new PostgresStore(DataSource, Options.Create(new DatabaseOptions()), NullLogger<PostgresStore>.Instance);
+        await new SchemaMigrator(Provider, NullLogger<SchemaMigrator>.Instance).MigrateAsync(default);
+        Store = new PostgresStore(Provider, Options.Create(new DatabaseOptions()), NullLogger<PostgresStore>.Instance);
     }
 
-    public async Task DisposeAsync() { if (DataSource is not null) await DataSource.DisposeAsync(); }
+    public Task DisposeAsync() { Provider?.Dispose(); return Task.CompletedTask; }
 }
 
 public sealed class PostgresFactAttribute : FactAttribute
@@ -53,7 +55,7 @@ public class PostgresIntegrationTests : IClassFixture<PostgresFixture>
     [PostgresFact]
     public async Task Migrations_are_idempotent()
     {
-        var m = new SchemaMigrator(_fx.DataSource!, NullLogger<SchemaMigrator>.Instance);
+        var m = new SchemaMigrator(_fx.Provider!, NullLogger<SchemaMigrator>.Instance);
         await m.MigrateAsync(default);
         await m.MigrateAsync(default);
         Assert.Equal(1, await Scalar("SELECT count(*) FROM atentis.schema_migrations"));

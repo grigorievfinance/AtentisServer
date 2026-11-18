@@ -21,8 +21,11 @@ internal sealed class FakeSource : ISlotSource
     public DateTime? LastConnectedUtc => Connected ? DateTime.UtcNow : null;
     public string? LastError => null;
     public event Action<string>? TableUpdated;
+    public event Action<string>? AuthenticationFailed;
 
+    public string? PasswordUsed { get; init; }
     public void Raise(string table) => TableUpdated?.Invoke(table);
+    public void RaiseAuthFailed(string message = "denied") => AuthenticationFailed?.Invoke(message);
     public Task StartAsync(CancellationToken ct) => StartFailure is null ? Task.CompletedTask : Task.FromException(StartFailure);
     public Task StopAsync() { Disposed = true; return Task.CompletedTask; }
     public DataTable? Snapshot(string tableName) => Tables.TryGetValue(tableName, out var t) ? t.Copy() : null;
@@ -33,13 +36,37 @@ internal sealed class FakeFactory : ISlotSourceFactory
 {
     public List<FakeSource> Created { get; } = new();
     public Action<FakeSource>? Configure { get; set; }
-    public ISlotSource Create(SlotOptions slot, IReadOnlyList<TableOptions> tables)
+    public ISlotSource Create(SlotOptions slot, string password, IReadOnlyList<TableOptions> tables)
     {
-        var s = new FakeSource(slot.Name, slot.Market);
+        var s = new FakeSource(slot.Name, slot.Market) { PasswordUsed = password };
         Configure?.Invoke(s);
         Created.Add(s);
         return s;
     }
+}
+
+internal sealed class FakeDatabaseGate : AtentisServer.Storage.IDatabaseGate
+{
+    public bool IsConfigured { get; set; } = true;
+    public long Generation { get; set; } = 1;
+    public Exception? Failure { get; set; }
+    public int Calls;
+    public Task EnsureReadyAsync(CancellationToken ct)
+    {
+        Calls++;
+        return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+    }
+}
+
+internal sealed class TestOptionsMonitor<T> : Microsoft.Extensions.Options.IOptionsMonitor<T>
+{
+    private T _value;
+    private Action<T, string?>? _listener;
+    public TestOptionsMonitor(T value) => _value = value;
+    public T CurrentValue => _value;
+    public T Get(string? name) => _value;
+    public void Set(T value) { _value = value; _listener?.Invoke(value, null); }
+    public IDisposable? OnChange(Action<T, string?> listener) { _listener = listener; return null; }
 }
 
 internal sealed class InMemoryStore : IDataStore

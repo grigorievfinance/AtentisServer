@@ -3,6 +3,8 @@ using Microsoft.Extensions.Options;
 using AtentisServer;
 using AtentisServer.Collection;
 using AtentisServer.Configuration;
+using AtentisServer.Control;
+using AtentisServer.Security;
 using AtentisServer.Monitoring;
 using AtentisServer.Sources;
 using AtentisServer.Storage;
@@ -68,24 +70,32 @@ try
         if (!WindowsServiceHelpers.IsWindowsService()) lc.WriteTo.Console();
     });
 
-    builder.Services.AddSingleton<IValidateOptions<CollectorOptions>, CollectorOptionsValidator>();
-    builder.Services.AddOptions<CollectorOptions>().Bind(builder.Configuration.GetSection(CollectorOptions.SectionName)).ValidateOnStart();
+    // Настройки читаются и применяются НА ЛЕТУ (без перезапуска службы): пароли Atentis хранятся только в памяти.
+    builder.Services.AddOptions<CollectorOptions>().Bind(builder.Configuration.GetSection(CollectorOptions.SectionName));
     builder.Services.AddOptions<DatabaseOptions>().Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
         .ValidateDataAnnotations().ValidateOnStart();
     builder.Services.AddOptions<MonitoringOptions>().Bind(builder.Configuration.GetSection(MonitoringOptions.SectionName));
+    builder.Services.AddOptions<ControlOptions>().Bind(builder.Configuration.GetSection(ControlOptions.SectionName));
 
-    var connectionString = builder.Configuration.GetConnectionString("Postgres");
-    if (string.IsNullOrWhiteSpace(connectionString))
-        throw new InvalidOperationException($"Не задана строка подключения ConnectionStrings:Postgres. Укажите её в файле настроек: {AppConfiguration.LocalFilePath(dataDir)}");
-    var csb = new NpgsqlConnectionStringBuilder(connectionString) { ApplicationName = "AtentisServer" };
-    builder.Services.AddSingleton(_ => new NpgsqlDataSourceBuilder(csb.ConnectionString).Build());
-
+    builder.Services.AddSingleton<IConfigurationRoot>(builder.Configuration);
+    builder.Services.AddSingleton(sp => new NpgsqlDataSourceProvider(sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<ILogger<NpgsqlDataSourceProvider>>()));
     builder.Services.AddSingleton<IDataStore, PostgresStore>();
     builder.Services.AddSingleton<SchemaMigrator>();
+    builder.Services.AddSingleton<IDatabaseGate, PostgresDatabaseGate>();
+    builder.Services.AddSingleton<CredentialStore>();
     builder.Services.AddSingleton<CollectorState>();
     builder.Services.AddSingleton<ISlotSourceFactory, AtentisSlotSourceFactory>();
     builder.Services.AddSingleton<CollectorWorker>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<CollectorWorker>());
+
+    builder.Services.AddSingleton<ILocalSettingsStore>(sp => new LocalSettingsStore(
+        sp.GetRequiredService<IConfigurationRoot>(), sp.GetRequiredService<IOptionsMonitor<CollectorOptions>>(),
+        AppConfiguration.LocalFilePath(dataDir)));
+    builder.Services.AddSingleton<IStatusService, StatusService>();
+    builder.Services.AddSingleton<IDatabaseTester, DatabaseTester>();
+    builder.Services.AddSingleton<ControlCommandHandler>();
+    builder.Services.AddHostedService<ControlServer>();
 
     builder.Services.AddHealthChecks()
         .AddCheck<DatabaseHealthCheck>("postgres", tags: new[] { "ready" })
@@ -102,7 +112,7 @@ try
     if (File.Exists(settingsFile))
         Log.Information("Файл настроек загружен: {SettingsFile}", settingsFile);
     else
-        Log.Warning("Файл настроек не найден: {SettingsFile}. Используются только appsettings.json и переменные окружения", settingsFile);
+        Log.Information("Файл настроек ещё не создан: {SettingsFile}. Он появится, когда пользователь сохранит настройки в «Панели управления»", settingsFile);
 
     app.MapMetrics("/metrics");
     app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });

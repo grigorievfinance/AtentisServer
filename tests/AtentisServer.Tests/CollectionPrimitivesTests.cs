@@ -79,8 +79,8 @@ public class OptionsValidatorTests
     {
         Slots =
         {
-            new SlotOptions { Name = "MICEX", Market = "SPOT", Server = "h", Port = 1, Login = "l", Password = "p" },
-            new SlotOptions { Name = "FORTS", Market = "FUT", Server = "h", Port = 2, Login = "l", Password = "p" }
+            new SlotOptions { Name = "MICEX", Market = "SPOT", Server = "h", Port = 1, Login = "l" },
+            new SlotOptions { Name = "FORTS", Market = "FUT", Server = "h", Port = 2, Login = "l" }
         },
         Tables = { new TableOptions { Name = "TRADES" } }
     };
@@ -90,18 +90,23 @@ public class OptionsValidatorTests
     [Fact] public void Valid_config_passes() => Assert.True(Run(Valid()).Succeeded);
 
     [Fact]
-    public void Missing_password_fails_without_leaking_values()
+    public void Not_yet_configured_slots_are_a_normal_state_not_an_error()
     {
-        var o = Valid(); o.Slots[0].Password = "";
-        var r = Run(o);
-        Assert.True(r.Failed);
-        Assert.Contains("Password", string.Join(";", r.Failures!));
+        var o = Valid();
+        foreach (var s in o.Slots) { s.Server = ""; s.Port = 0; s.Login = ""; }
+        Assert.True(Run(o).Succeeded);
+        Assert.All(o.Slots, s => Assert.False(s.IsConfigured));
     }
 
     [Fact] public void Bad_market_fails() { var o = Valid(); o.Slots[1].Market = "XXX"; Assert.True(Run(o).Failed); }
     [Fact] public void Duplicate_slot_names_fail() { var o = Valid(); o.Slots[1].Name = "micex"; Assert.True(Run(o).Failed); }
-    [Fact] public void No_tables_fails() { var o = Valid(); o.Tables.Clear(); Assert.True(Run(o).Failed); }
-    [Fact] public void Disabled_slot_is_not_validated() { var o = Valid(); o.Slots[1].Enabled = false; o.Slots[1].Password = ""; Assert.True(Run(o).Succeeded); }
+    [Fact] public void Port_out_of_range_fails() { var o = Valid(); o.Slots[0].Port = 70000; Assert.True(Run(o).Failed); }
+    [Fact] public void Slot_identity_changes_with_connection_parameters()
+    {
+        var a = Valid().Slots[0];
+        var id = a.Identity;
+        a.Server = "other"; Assert.NotEqual(id, a.Identity);
+    }
 }
 
 public class LogThrottleTests

@@ -19,6 +19,9 @@ public interface ISlotSource : IAsyncDisposable
     /// <summary>Вызывается (из потока библиотеки Atentis!) при обновлении таблицы. Обработчик должен быть быстрым.</summary>
     event Action<string>? TableUpdated;
 
+    /// <summary>Atentis отклонил логин/пароль (или требует сменить пароль). Повторять подключение нельзя - можно заблокировать учётную запись.</summary>
+    event Action<string>? AuthenticationFailed;
+
     Task StartAsync(CancellationToken ct);
     Task StopAsync();
 
@@ -28,5 +31,6 @@ public interface ISlotSource : IAsyncDisposable
 
 public interface ISlotSourceFactory
 {
-    ISlotSource Create(SlotOptions slot, IReadOnlyList<TableOptions> tables);
+    /// <param name="password">Пароль Atentis (только из памяти службы).</param>
+    ISlotSource Create(SlotOptions slot, string password, IReadOnlyList<TableOptions> tables);
 }

@@ -32,6 +32,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\AtentisServer.Contracts\AtentisServer.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Storage\Sql\*.sql" />
   </ItemGroup>
 

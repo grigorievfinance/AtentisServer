@@ -18,13 +18,10 @@ public sealed class CollectorOptions
     [Range(1, 50000)]
     public int BatchSize { get; set; } = 1000;
 
-    /// <summary>Сколько секунд слот может быть без соединения, прежде чем он будет пересоздан.</summary>
+    /// <summary>Сколько секунд слот может быть без соединения, прежде чем он будет пересоздан. Процесс при этом НЕ перезапускается
+    /// (пароли Atentis хранятся только в памяти и пропали бы при перезапуске).</summary>
     [Range(10, 3600)]
-    public int ReconnectAfterSeconds { get; set; } = 120;
-
-    /// <summary>Сколько подряд неудачных пересозданий слота допускается до аварийного выхода процесса (его перезапустит SCM).</summary>
-    [Range(1, 1000)]
-    public int MaxConsecutiveReconnectFailures { get; set; } = 10;
+    public int ReconnectAfterSeconds { get; set; } = 60;
 
     /// <summary>Как часто (сек) писать состояние в atentis.collector_status.</summary>
     [Range(5, 3600)]
@@ -49,17 +46,14 @@ public sealed class SlotOptions
 
     public bool Enabled { get; set; } = true;
 
-    [Required]
+    /// <summary>Адрес сервера Atentis. Пустой = слот ещё не настроен.</summary>
     public string Server { get; set; } = "";
 
-    [Range(1, 65535)]
     public int Port { get; set; }
 
-    [Required]
     public string Login { get; set; } = "";
 
-    /// <summary>Пароль. НЕ хранить в appsettings.json: задавать через переменную окружения Collector__Slots__N__Password.</summary>
-    public string Password { get; set; } = "";
+    // Пароль Atentis в настройках НЕ хранится: его вводят вручную в «Панели управления», он живёт только в памяти службы.
 
     /// <summary>Файл открытого ключа для защищённого соединения; пусто = незащищённое.</summary>
     public string PublicKeyFile { get; set; } = "";
@@ -67,6 +61,13 @@ public sealed class SlotOptions
     /// <summary>Период обновления таблиц, мс.</summary>
     [Range(100, 60000)]
     public int RefreshPeriodMs { get; set; } = 1000;
+
+    /// <summary>Заполнены ли сервер, порт и логин (иначе слот показывается как «не настроен»).</summary>
+    public bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(Server) && Port is >= 1 and <= 65535 && !string.IsNullOrWhiteSpace(Login);
+
+    /// <summary>Параметры, при изменении которых слот надо пересоздать (и пароль, скорее всего, придётся ввести заново).</summary>
+    public string Identity => $"{Server.Trim()}|{Port}|{Login.Trim()}|{PublicKeyFile}|{RefreshPeriodMs}";
 }
 
 public sealed class TableOptions
@@ -107,4 +108,15 @@ public sealed class MonitoringOptions
 
     /// <summary>Адрес HTTP-сервера метрик и health-check. По умолчанию только localhost.</summary>
     public string Url { get; set; } = "http://127.0.0.1:9464";
+}
+
+public sealed class ControlOptions
+{
+    public const string SectionName = "Control";
+
+    /// <summary>Имя именованного канала управления.</summary>
+    public string PipeName { get; set; } = AtentisServer.Contracts.ControlPipe.Name;
+
+    /// <summary>Группа Windows, члены которой могут управлять службой из «Панели управления».</summary>
+    public string OperatorsGroup { get; set; } = AtentisServer.Contracts.ControlPipe.OperatorsGroup;
 }

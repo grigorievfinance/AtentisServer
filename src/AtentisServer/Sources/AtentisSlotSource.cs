@@ -9,14 +9,15 @@ public sealed class AtentisSlotSourceFactory : ISlotSourceFactory
     private readonly ILoggerFactory _loggers;
     public AtentisSlotSourceFactory(ILoggerFactory loggers) => _loggers = loggers;
 
-    public ISlotSource Create(SlotOptions slot, IReadOnlyList<TableOptions> tables) =>
-        new AtentisSlotSource(slot, tables, _loggers.CreateLogger($"Atentis.{slot.Name}"));
+    public ISlotSource Create(SlotOptions slot, string password, IReadOnlyList<TableOptions> tables) =>
+        new AtentisSlotSource(slot, password, tables, _loggers.CreateLogger($"Atentis.{slot.Name}"));
 }
 
 /// <summary>Реализация ISlotSource поверх Atentis.Connection.Slot (без UI, без MessageBox, все исключения перехватываются).</summary>
 public sealed class AtentisSlotSource : ISlotSource
 {
     private readonly SlotOptions _options;
+    private readonly string _password;
     private readonly IReadOnlyList<TableOptions> _tables;
     private readonly ILogger _log;
     private Slot? _slot;
@@ -24,9 +25,10 @@ public sealed class AtentisSlotSource : ISlotSource
     private long _lastConnectedTicks;
     private readonly LogThrottle _throttle = new(TimeSpan.FromMinutes(1));
 
-    public AtentisSlotSource(SlotOptions options, IReadOnlyList<TableOptions> tables, ILogger log)
+    public AtentisSlotSource(SlotOptions options, string password, IReadOnlyList<TableOptions> tables, ILogger log)
     {
         _options = options;
+        _password = password;
         _tables = tables;
         _log = log;
     }
@@ -64,11 +66,12 @@ public sealed class AtentisSlotSource : ISlotSource
     }
 
     public event Action<string>? TableUpdated;
+    public event Action<string>? AuthenticationFailed;
 
     public Task StartAsync(CancellationToken ct) => Task.Run(() =>
     {
         ct.ThrowIfCancellationRequested();
-        var slot = new Slot(_options.Name, _options.Server, _options.Port, _options.Login, _options.Password,
+        var slot = new Slot(_options.Name, _options.Server, _options.Port, _options.Login, _password,
             false, _options.PublicKeyFile ?? "");
         slot.RefreshPeriod = _options.RefreshPeriodMs;
         _slot = slot;
@@ -158,6 +161,12 @@ public sealed class AtentisSlotSource : ISlotSource
                 _ => LogLevel.Information
             };
             if (level >= LogLevel.Warning) _lastError = $"{e.State}: {e.Message}";
+            if (e.State is SlotState.Denied or SlotState.NeedNewPassword)
+            {
+                AuthenticationFailed?.Invoke(e.State == SlotState.NeedNewPassword
+                    ? "Atentis требует сменить пароль. Смените его в Atentis и введите новый."
+                    : "Atentis отклонил логин или пароль. Проверьте данные и введите пароль заново.");
+            }
             if (e.State is SlotState.Connected or SlotState.Reconnected)
                 Interlocked.Exchange(ref _lastConnectedTicks, DateTime.UtcNow.Ticks);
             if (_throttle.ShouldLog("state:" + e.State + e.Message, out var suppressed))
