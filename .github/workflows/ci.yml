@@ -1,7 +1,13 @@
 name: CI
 on:
   push:
+    tags: ['v*']
+    branches: ['**']
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   linux:
@@ -21,7 +27,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: 8.0.x }
       - run: dotnet build -c Release
-      - name: Tests (включая интеграционные с PostgreSQL)
+      - name: Тесты службы (включая интеграционные с PostgreSQL) и панели (окно рисуется без экрана)
         run: dotnet test -c Release --no-build
         env:
           ATENTIS_TEST_PG: Host=localhost;Database=atentis_test;Username=atentis_test;Password=ci_only_password
@@ -36,16 +42,43 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: 8.0.x }
-      - name: PowerShell-скрипты должны быть в UTF-8 с BOM (иначе Windows PowerShell 5.1 ломает кириллицу)
+      - name: PowerShell-скрипты и установщик должны быть в UTF-8 с BOM (иначе Windows PowerShell 5.1 и Inno Setup ломают кириллицу)
         shell: pwsh
         run: |
-          $bad = Get-ChildItem deploy -Filter *.ps1 | Where-Object { $b = [IO.File]::ReadAllBytes($_.FullName); -not ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) }
-          if ($bad) { $bad | ForEach-Object { Write-Error "Нет BOM: $($_.Name)" }; exit 1 }
+          $files = Get-ChildItem deploy, installer -Include *.ps1, *.iss -Recurse
+          $bad = $files | Where-Object { $b = [IO.File]::ReadAllBytes($_.FullName); -not ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) }
+          if ($bad) { $bad | ForEach-Object { Write-Error "Нет BOM: $($_.FullName)" }; exit 1 }
       - run: dotnet test -c Release
-      - name: Публикация win-x64
-        run: ./deploy/publish.ps1 -Output ./publish/AtentisServer
+      - name: Сборка службы, панели и установщика
         shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          ./deploy/publish.ps1
+      - name: Проверка установщика на настоящем Windows (установка, настройка на лету, авария, удаление)
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem publish/installer -Filter 'AtentisServer-Setup-*.exe' | Select-Object -First 1
+          ./installer/Test-Installation.ps1 -InstallerPath $installer.FullName
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: AtentisServer-win-x64
-          path: publish/AtentisServer
+          name: AtentisServer-Setup
+          path: publish/installer/*.exe
+          if-no-files-found: warn
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AtentisServer-Setup
+          path: installer
+      - name: Опубликовать релиз с установщиком
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" installer/*.exe --repo "${{ github.repository }}" --title "Atentis Server ${{ github.ref_name }}" --generate-notes

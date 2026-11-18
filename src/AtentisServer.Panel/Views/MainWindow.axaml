@@ -1,0 +1,197 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AtentisServer.Panel.ViewModels"
+        xmlns:conv="using:AtentisServer.Panel.Converters"
+        x:Class="AtentisServer.Panel.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Atentis Server — панель управления"
+        Icon="/Assets/app.png"
+        Width="1020" Height="800" MinWidth="900" MinHeight="640"
+        WindowStartupLocation="CenterScreen">
+
+  <DockPanel>
+
+    <!-- Шапка -->
+    <Border DockPanel.Dock="Top" Background="White" BorderBrush="#E4E8F0" BorderThickness="0,0,0,1" Padding="24,14">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Image Source="/Assets/app.png" Width="42" Height="42" />
+        <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center" Spacing="2">
+          <TextBlock Classes="title" Text="Atentis Server" />
+          <TextBlock Classes="muted" Text="Сбор сделок из Atentis в базу данных" />
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <TextBlock Classes="muted" Text="{Binding VersionText}" VerticalAlignment="Center" />
+          <Border Classes="pill" Background="{Binding ServiceTone, Converter={x:Static conv:Tones.PillBackground}}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding ServiceTone, Converter={x:Static conv:Tones.Dot}}" />
+              <TextBlock Text="{Binding ServiceText}" FontWeight="SemiBold"
+                         Foreground="{Binding ServiceTone, Converter={x:Static conv:Tones.PillForeground}}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Нижняя панель с кнопками -->
+    <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="#E4E8F0" BorderThickness="0,1,0,0" Padding="24,14">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Classes="muted" VerticalAlignment="Center" Margin="0,0,24,0"
+                   Text="Пароли Atentis нигде не сохраняются: они хранятся только в памяти службы. После перезагрузки сервера их нужно ввести снова." />
+        <Button Grid.Column="1" Classes="secondary" Content="Обновить" Margin="0,0,10,0"
+                Command="{Binding RefreshNowCommand}" />
+        <Button Grid.Column="2" Classes="primary" Content="Сохранить и подключить" FontSize="15"
+                Command="{Binding SaveAndConnectCommand}" IsEnabled="{Binding CanOperate}" />
+      </Grid>
+    </Border>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="24" Spacing="18">
+
+        <!-- Служба недоступна -->
+        <Border IsVisible="{Binding ServiceProblem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                Background="#FDE8E8" BorderBrush="#F4A9A8" BorderThickness="1" CornerRadius="10" Padding="16,12">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Нет связи со службой AtentisServer" FontWeight="SemiBold" Foreground="#912018" />
+            <TextBlock Text="{Binding ServiceProblem}" Foreground="#912018" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <!-- Результат действия -->
+        <Border IsVisible="{Binding HasBanner}"
+                Background="{Binding BannerKind, Converter={x:Static conv:Tones.BannerBackground}}"
+                BorderBrush="{Binding BannerKind, Converter={x:Static conv:Tones.BannerBorder}}"
+                BorderThickness="1" CornerRadius="10" Padding="16,12">
+          <StackPanel Spacing="6">
+            <TextBlock Text="{Binding BannerText}" FontWeight="SemiBold" TextWrapping="Wrap"
+                       Foreground="{Binding BannerKind, Converter={x:Static conv:Tones.BannerForeground}}" />
+            <ItemsControl ItemsSource="{Binding BannerDetails}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock TextWrapping="Wrap" Margin="8,0,0,0" Text="{Binding StringFormat='•  {0}'}"
+                             Foreground="{Binding $parent[Border].((vm:MainViewModel)DataContext).BannerKind, Converter={x:Static conv:Tones.BannerForeground}}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- 1. Atentis -->
+        <StackPanel Spacing="10" IsEnabled="{Binding ServiceReachable}">
+          <TextBlock Classes="h2" Text="1. Подключение к Atentis" />
+          <TextBlock Classes="muted"
+                     Text="Введите адрес сервера, порт, логин и пароль для каждого рынка. Пароль вводится один раз: служба запомнит его до перезагрузки сервера и сама будет переподключаться при обрыве связи." />
+          <ItemsControl ItemsSource="{Binding Slots}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SlotViewModel">
+                <Border Classes="card" Margin="0,0,12,12">
+                  <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Spacing="2">
+                        <TextBlock Classes="h2" Text="{Binding Title}" />
+                        <TextBlock Classes="muted" Text="{Binding Subtitle}" />
+                      </StackPanel>
+                      <ToggleSwitch Grid.Column="1" IsChecked="{Binding Enabled}" OnContent="Включено" OffContent="Выключено" />
+                    </Grid>
+
+                    <Border Classes="pill" Background="{Binding Tone, Converter={x:Static conv:Tones.PillBackground}}">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Tone, Converter={x:Static conv:Tones.Dot}}" />
+                        <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
+                                   Foreground="{Binding Tone, Converter={x:Static conv:Tones.PillForeground}}" />
+                      </StackPanel>
+                    </Border>
+                    <TextBlock Classes="muted" Text="{Binding StateHint}"
+                               IsVisible="{Binding StateHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Spacing="10" IsEnabled="{Binding Enabled}">
+                      <Grid ColumnDefinitions="*,110" ColumnSpacing="10">
+                        <StackPanel>
+                          <TextBlock Classes="label" Text="Адрес сервера Atentis" />
+                          <TextBox Text="{Binding Server}" Watermark="например, 10.0.0.1" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                          <TextBlock Classes="label" Text="Порт" />
+                          <TextBox Text="{Binding PortText}" Watermark="7800" />
+                        </StackPanel>
+                      </Grid>
+                      <StackPanel>
+                        <TextBlock Classes="label" Text="Логин" />
+                        <TextBox Text="{Binding Login}" />
+                      </StackPanel>
+                      <StackPanel>
+                        <TextBlock Classes="label" Text="Пароль" />
+                        <TextBox Text="{Binding Password}" PasswordChar="●" Watermark="{Binding PasswordPlaceholder}" />
+                      </StackPanel>
+                    </StackPanel>
+
+                    <Button Classes="link" HorizontalAlignment="Left" Content="Отключить и забыть пароль"
+                            IsVisible="{Binding HasPassword}"
+                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).DisconnectCommand}"
+                            CommandParameter="{Binding}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- 2. База данных -->
+        <StackPanel Spacing="10" IsEnabled="{Binding ServiceReachable}">
+          <TextBlock Classes="h2" Text="2. База данных PostgreSQL" />
+          <TextBlock Classes="muted" Text="Сюда служба складывает собранные сделки. Эти данные сохраняются в файле настроек на сервере." />
+          <Border Classes="card">
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="2*,*,2*" ColumnSpacing="12">
+                <StackPanel>
+                  <TextBlock Classes="label" Text="Адрес сервера базы данных" />
+                  <TextBox Text="{Binding DbHost}" Watermark="например, localhost или 10.0.0.5" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                  <TextBlock Classes="label" Text="Порт" />
+                  <TextBox Text="{Binding DbPortText}" Watermark="5432" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Classes="label" Text="Имя базы" />
+                  <TextBox Text="{Binding DbName}" Watermark="atentis" />
+                </StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                <StackPanel>
+                  <TextBlock Classes="label" Text="Пользователь" />
+                  <TextBox Text="{Binding DbUser}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                  <TextBlock Classes="label" Text="Пароль" />
+                  <TextBox Text="{Binding DbPassword}" PasswordChar="●" Watermark="{Binding DbPasswordPlaceholder}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Classes="label" Text="Шифрование соединения" />
+                  <ComboBox ItemsSource="{Binding SslModes}" SelectedItem="{Binding SslMode}" />
+                </StackPanel>
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <Button Classes="secondary" Content="Проверить подключение"
+                        Command="{Binding TestDatabaseCommand}" IsEnabled="{Binding CanOperate}" />
+                <Border Classes="pill" VerticalAlignment="Center"
+                        IsVisible="{Binding DbStateText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        Background="{Binding DbTone, Converter={x:Static conv:Tones.PillBackground}}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding DbTone, Converter={x:Static conv:Tones.Dot}}" />
+                    <TextBlock Text="{Binding DbStateText}" FontWeight="SemiBold"
+                               Foreground="{Binding DbTone, Converter={x:Static conv:Tones.PillForeground}}" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>
