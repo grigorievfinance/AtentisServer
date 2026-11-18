@@ -61,8 +61,7 @@ public sealed class ControlClient : IControlClient
         catch (UnauthorizedAccessException)
         {
             return ControlResponse.Fail(ErrorCodes.AccessDenied,
-                "Нет прав на управление службой. Попросите администратора добавить вашу учётную запись в группу «" +
-                ControlPipe.OperatorsGroup + "».");
+                "Нет прав на управление службой. Обратитесь к администратору сервера.");
         }
         catch (JsonException)
         {

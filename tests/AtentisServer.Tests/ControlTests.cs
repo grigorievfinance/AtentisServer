@@ -170,7 +170,7 @@ public class ControlCommandHandlerTests
     }
 
     [Fact]
-    public async Task Database_password_is_never_sent_back_and_empty_password_keeps_the_old_one()
+    public async Task Database_password_is_never_sent_back_and_empty_password_keeps_the_old_one_for_the_same_target()
     {
         using var t = new ControlTestsBase();
         await Send(t, new ControlRequest { Cmd = Commands.Apply, Settings = ControlTestsBase.Settings() });
@@ -181,13 +181,46 @@ public class ControlCommandHandlerTests
         Assert.Equal("Require", got.Database.SslMode);
         Assert.Equal("db.local", got.Database.Host);
 
-        got.Database.Host = "db2.local";                                  // пользователь изменил адрес, поле пароля оставил пустым
-        got.Slots.ForEach(s => { });
+        got.Database.SslMode = "VerifyFull";                                // меняем только шифрование, пароль оставляем пустым
         var r = await Send(t, new ControlRequest { Cmd = Commands.Apply, Settings = got });
         Assert.True(r.Ok, r.Error);
-        var cs = t.Store.CurrentConnectionString!;
-        Assert.Contains("db2.local", cs);
-        Assert.Contains("db-secret;with=chars", new Npgsql.NpgsqlConnectionStringBuilder(cs).Password);
+        var b = new Npgsql.NpgsqlConnectionStringBuilder(t.Store.CurrentConnectionString!);
+        Assert.Equal("db-secret;with=chars", b.Password);
+        Assert.Equal(Npgsql.SslMode.VerifyFull, b.SslMode);
+    }
+
+    [Theory]
+    [InlineData("host")]
+    [InlineData("port")]
+    [InlineData("database")]
+    [InlineData("user")]
+    public async Task Saved_database_password_cannot_be_redirected_to_another_target_without_retyping_it(string what)
+    {
+        // Панель доступна ВСЕМ пользователям сервера: никто не должен суметь отправить сохранённый пароль БД на чужой адрес.
+        using var t = new ControlTestsBase();
+        await Send(t, new ControlRequest { Cmd = Commands.Apply, Settings = ControlTestsBase.Settings() });
+        var before = await System.IO.File.ReadAllTextAsync(t.File);
+
+        var got = (await Send(t, new ControlRequest { Cmd = Commands.GetSettings })).Settings!;
+        switch (what)
+        {
+            case "host": got.Database.Host = "evil.example.com"; break;
+            case "port": got.Database.Port = 6543; break;
+            case "database": got.Database.Database = "other"; break;
+            default: got.Database.Username = "other_user"; break;
+        }
+
+        var apply = await Send(t, new ControlRequest { Cmd = Commands.Apply, Settings = got });
+        Assert.False(apply.Ok);
+        Assert.Contains(apply.Errors!, e => e.Contains("введите пароль базы данных заново"));
+        Assert.Equal(before, await System.IO.File.ReadAllTextAsync(t.File));       // файл не изменён
+
+        var test = await Send(t, new ControlRequest { Cmd = Commands.TestDatabase, Settings = new SettingsDto { Database = got.Database } });
+        Assert.False(test.Ok);                                                      // и «проверить подключение» старый пароль на новый адрес не отправит
+        Assert.Null(t.Tester.Last);
+
+        got.Database.Password = "typed-again";                                     // с повторно введённым паролем смена разрешена
+        Assert.True((await Send(t, new ControlRequest { Cmd = Commands.Apply, Settings = got })).Ok);
     }
 
     [Fact]

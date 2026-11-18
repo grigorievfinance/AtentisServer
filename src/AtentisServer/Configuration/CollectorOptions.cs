@@ -116,7 +116,4 @@ public sealed class ControlOptions
 
     /// <summary>Имя именованного канала управления.</summary>
     public string PipeName { get; set; } = AtentisServer.Contracts.ControlPipe.Name;
-
-    /// <summary>Группа Windows, члены которой могут управлять службой из «Панели управления».</summary>
-    public string OperatorsGroup { get; set; } = AtentisServer.Contracts.ControlPipe.OperatorsGroup;
 }

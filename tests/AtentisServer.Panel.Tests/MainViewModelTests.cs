@@ -99,7 +99,7 @@ public class MainViewModelTests
         FillValid(vm);
         await vm.SaveAndConnectCommand.ExecuteAsync(null);
 
-        vm.DbHost = "db2.local";                                    // меняем только базу
+        vm.SslMode = vm.SslModes[1];                                // меняем только шифрование базы - пароли вводить не нужно
         await vm.SaveAndConnectCommand.ExecuteAsync(null);
         Assert.Equal(BannerKind.Success, vm.BannerKind);
 
@@ -197,5 +197,29 @@ public class MainViewModelTests
         await vm.RefreshAsync();
         await vm.RefreshAsync();
         Assert.Equal("typing-in-progress", vm.Slots[0].Server);
+    }
+
+    [Fact]
+    public async Task Changing_the_database_address_requires_retyping_the_saved_database_password()
+    {
+        var (vm, svc) = await Started();
+        FillValid(vm);
+        await vm.SaveAndConnectCommand.ExecuteAsync(null);          // сохранили, у службы есть пароль БД
+        Assert.Equal(BannerKind.Success, vm.BannerKind);
+        svc.Requests.Clear();
+
+        vm.DbHost = "other-server.local";                            // пароль не вводим
+        await vm.SaveAndConnectCommand.ExecuteAsync(null);
+        Assert.Equal(BannerKind.Error, vm.BannerKind);
+        Assert.Contains(vm.BannerDetails, d => d.Contains("введите пароль базы данных заново"));
+        Assert.DoesNotContain(svc.Requests, r => r.Cmd == Commands.Apply);
+
+        await vm.TestDatabaseCommand.ExecuteAsync(null);
+        Assert.Contains("введите пароль базы данных заново", vm.BannerText);
+        Assert.DoesNotContain(svc.Requests, r => r.Cmd == Commands.TestDatabase);
+
+        vm.DbPassword = "new-password";
+        await vm.SaveAndConnectCommand.ExecuteAsync(null);
+        Assert.Equal(BannerKind.Success, vm.BannerKind);
     }
 }

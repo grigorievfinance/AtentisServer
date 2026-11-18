@@ -39,7 +39,11 @@ internal sealed class FakeControlClient : IControlClient
                 {
                     var errors = SettingsValidator.Validate(request.Settings);
                     if (errors.Count > 0) return Task.FromResult(ControlResponse.Fail(ErrorCodes.Invalid, "Проверьте введённые данные.", errors));
+                    var hadPassword = Settings.Database.HasPassword;
                     Settings = request.Settings;
+                    // как настоящая служба: пароль БД наружу не отдаётся, остаётся только признак «пароль сохранён»
+                    Settings.Database.HasPassword = hadPassword || !string.IsNullOrEmpty(Settings.Database.Password);
+                    Settings.Database.Password = null;
                     DatabaseReady = true;
                 }
                 foreach (var (slot, pw) in request.Passwords ?? new()) Passwords[slot] = pw;
@@ -59,7 +63,7 @@ internal sealed class FakeControlClient : IControlClient
     {
         var dto = new StatusDto
         {
-            Version = "4.0.0",
+            Version = "4.2.0",
             ServerTimeUtc = DateTime.UtcNow,
             DatabaseConfigured = !string.IsNullOrEmpty(Settings.Database.Host),
             DatabaseReady = DatabaseReady,

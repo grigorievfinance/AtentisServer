@@ -10,8 +10,8 @@ using Microsoft.Extensions.Options;
 namespace AtentisServer.Control;
 
 /// <summary>
-/// Канал управления для «Панели управления»: именованный канал Windows. Доступ только у SYSTEM, администраторов и группы
-/// операторов (AtentisServerOperators); сетевые подключения запрещены. Через канал приходят пароли Atentis - они сразу попадают в память
+/// Канал управления для «Панели управления»: именованный канал Windows. Доступ у SYSTEM, администраторов и ВСЕХ локальных
+/// пользователей сервера (группа «Пользователи»: любой, кто вошёл на сервер, может ввести логин/пароль); сетевые подключения запрещены. Через канал приходят пароли Atentis - они сразу попадают в память
 /// службы и больше нигде не сохраняются и не логируются.
 /// </summary>
 public sealed class ControlServer : BackgroundService
@@ -71,15 +71,9 @@ public sealed class ControlServer : BackgroundService
         security.AddAccessRule(new PipeAccessRule(self, PipeAccessRights.FullControl, AccessControlType.Allow));
         security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
         security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
-        try
-        {
-            var group = (SecurityIdentifier)new NTAccount(_options.OperatorsGroup).Translate(typeof(SecurityIdentifier));
-            security.AddAccessRule(new PipeAccessRule(group, PipeAccessRights.ReadWrite | PipeAccessRights.Synchronize, AccessControlType.Allow));
-        }
-        catch (IdentityNotMappedException)
-        {
-            _log.LogWarning("Группа «{Group}» не найдена: управлять службой смогут только администраторы", _options.OperatorsGroup);
-        }
+        // Любой пользователь, вошедший на сервер (консоль или RDP), может управлять службой из панели.
+        security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+            PipeAccessRights.ReadWrite | PipeAccessRights.Synchronize, AccessControlType.Allow));
         // Удалённый доступ по сети (SMB) запрещён.
         security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.NetworkSid, null), PipeAccessRights.FullControl, AccessControlType.Deny));
 

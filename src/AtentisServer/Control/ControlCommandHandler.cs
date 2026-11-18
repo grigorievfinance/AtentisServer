@@ -9,6 +9,24 @@ public sealed class ControlCommandHandler
 {
     private const int MaxPasswordLength = 512;
 
+    internal const string DatabasePasswordRequired =
+        "База данных: вы изменили адрес, порт, имя базы или пользователя - введите пароль базы данных заново " +
+        "(сохранённый пароль не передаётся на новый адрес).";
+
+    /// <summary>
+    /// Панель доступна всем пользователям сервера. Чтобы никто не смог перенаправить СОХРАНЁННЫЙ пароль БД на другой адрес,
+    /// при смене адреса/порта/базы/пользователя пароль нужно ввести заново.
+    /// </summary>
+    internal static bool DatabaseTargetChangedWithoutPassword(DatabaseSettingsDto current, DatabaseSettingsDto requested)
+    {
+        if (!string.IsNullOrEmpty(requested.Password)) return false;
+        if (!current.HasPassword) return false;
+        return !string.Equals(current.Host.Trim(), requested.Host.Trim(), StringComparison.OrdinalIgnoreCase)
+               || current.Port != requested.Port
+               || !string.Equals(current.Database.Trim(), requested.Database.Trim(), StringComparison.Ordinal)
+               || !string.Equals(current.Username.Trim(), requested.Username.Trim(), StringComparison.Ordinal);
+    }
+
     private readonly ILocalSettingsStore _settings;
     private readonly CredentialStore _credentials;
     private readonly IStatusService _status;
@@ -51,6 +69,8 @@ public sealed class ControlCommandHandler
 
                 case Commands.TestDatabase:
                     if (req.Settings?.Database is null) return ControlResponse.Fail(ErrorCodes.Invalid, "Не переданы параметры базы данных.");
+                    if (DatabaseTargetChangedWithoutPassword(_settings.Read().Database, req.Settings.Database))
+                        return ControlResponse.Fail(ErrorCodes.Invalid, DatabasePasswordRequired);
                     var (ok, message) = await _dbTester.TestAsync(req.Settings.Database, _settings.CurrentConnectionString, ct);
                     return new ControlResponse { Ok = ok, Message = ok ? message : null, Error = ok ? null : message, ErrorCode = ok ? null : ErrorCodes.Invalid };
 
@@ -75,6 +95,8 @@ public sealed class ControlCommandHandler
         {
             var errors = SettingsValidator.Validate(req.Settings);
             if (errors.Count > 0) return ControlResponse.Fail(ErrorCodes.Invalid, "Проверьте введённые данные.", errors);
+            if (DatabaseTargetChangedWithoutPassword(before.Database, req.Settings.Database))
+                return ControlResponse.Fail(ErrorCodes.Invalid, "Проверьте введённые данные.", new List<string> { DatabasePasswordRequired });
         }
 
         var passwords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

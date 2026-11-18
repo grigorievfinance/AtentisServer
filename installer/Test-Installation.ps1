@@ -58,9 +58,8 @@ function Dump-Diagnostics {
 
 try {
     Step 'Тихая установка'
-    $operator = "$env:USERDOMAIN\$env:USERNAME"
     $p = Start-Process -FilePath $InstallerPath -Wait -PassThru -ArgumentList @(
-        '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$InstallLog", "/OPERATORS=$operator")
+        '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$InstallLog")
     Check ($p.ExitCode -eq 0) "установщик завершился с кодом 0 (получен $($p.ExitCode))"
     Check (Test-Path (Join-Path $InstallDir 'service\AtentisServer.exe')) 'файлы службы установлены'
     Check (Test-Path (Join-Path $InstallDir 'panel\AtentisPanel.exe')) 'файлы панели установлены'
@@ -74,9 +73,7 @@ try {
     $failure = (sc.exe qfailure AtentisServer) -join "`n"
     Check ($failure -match 'RESTART') 'настроен авто-перезапуск при сбое'
 
-    Step 'Группа операторов и права'
-    $members = (net localgroup AtentisServerOperators) -join "`n"
-    Check ($members -match [regex]::Escape($env:USERNAME)) "пользователь $env:USERNAME добавлен в группу AtentisServerOperators"
+    Step 'Права на каталог данных'
     $acl = (icacls $DataDir) -join "`n"
     Check ($acl -notmatch 'BUILTIN\\Users' -and $acl -notmatch 'Everyone' -and $acl -notmatch 'Authenticated Users') 'каталог данных закрыт от обычных пользователей'
     Check ($acl -match 'AtentisServer') 'служба имеет доступ к каталогу данных'
@@ -120,6 +117,62 @@ try {
     $fileAcl = (icacls $SettingsFile) -join "`n"
     Check ($fileAcl -notmatch 'BUILTIN\\Users' -and $fileAcl -notmatch 'Everyone') 'файл настроек недоступен обычным пользователям'
 
+    Step 'Любой пользователь сервера (не администратор) может управлять службой'
+    $testUser = 'atentis_user1'
+    # Не длиннее 14 символов: иначе net user задаёт интерактивный вопрос, а в CI отвечать некому.
+    $testPass = 'Aa1!' + [guid]::NewGuid().ToString('N').Substring(0, 10)
+    $UserSecret = 'USER-TYPED-SECRET-55'
+    $work = Join-Path $env:SystemDrive 'atentis-ci'
+    New-Item -ItemType Directory -Force -Path $work | Out-Null
+    icacls $work /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
+    net user $testUser $testPass /add | Out-Null
+    Check ($LASTEXITCODE -eq 0) 'тестовый пользователь без прав администратора создан'
+    try {
+        $userScript = @'
+$ErrorActionPreference = 'Stop'
+$r = @{}
+$r.isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+function Ctl($request) {
+    $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'AtentisServer.Control', [System.IO.Pipes.PipeDirection]::InOut)
+    try {
+        $pipe.Connect(10000)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes(($request | ConvertTo-Json -Depth 10 -Compress) + "`n")
+        $pipe.Write($bytes, 0, $bytes.Length); $pipe.Flush()
+        return ((New-Object System.IO.StreamReader($pipe, [System.Text.Encoding]::UTF8)).ReadLine() | ConvertFrom-Json)
+    } finally { $pipe.Dispose() }
+}
+try {
+    $r.statusOk = (Ctl @{ cmd = 'status' }).ok
+    $apply = Ctl @{ cmd = 'apply'; passwords = @{ MICEX = '__SECRET__' } }
+    $r.applyOk = $apply.ok
+    $r.applyError = $apply.error
+} catch { $r.pipeError = $_.Exception.Message }
+try { Get-Content '__SETTINGS__' -Raw | Out-Null; $r.canReadSettings = $true } catch { $r.canReadSettings = $false }
+try { $null = Get-ChildItem '__LOGS__' -ErrorAction Stop; $r.canReadLogs = $true } catch { $r.canReadLogs = $false }
+$r | ConvertTo-Json | Set-Content -Path '__OUT__' -Encoding UTF8
+'@
+        $outFile = Join-Path $work 'result.json'
+        $userScript = $userScript.Replace('__SECRET__', $UserSecret).Replace('__SETTINGS__', $SettingsFile).Replace('__LOGS__', (Join-Path $DataDir 'logs')).Replace('__OUT__', $outFile)
+        $scriptFile = Join-Path $work 'as-user.ps1'
+        Set-Content -Path $scriptFile -Value $userScript -Encoding UTF8
+        $cred = New-Object System.Management.Automation.PSCredential("$env:COMPUTERNAME\$testUser", (ConvertTo-SecureString $testPass -AsPlainText -Force))
+        $proc = Start-Process -FilePath 'powershell.exe' -Credential $cred -WorkingDirectory $work -LoadUserProfile -Wait -PassThru `
+            -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptFile)
+        Check (Test-Path $outFile) "сценарий обычного пользователя завершился (код $($proc.ExitCode))"
+        $res = Get-Content $outFile -Raw | ConvertFrom-Json
+        Check (-not $res.isAdmin) 'проверка выполнялась БЕЗ прав администратора'
+        Check ($res.statusOk) "обычный пользователь получил статус службы ($($res.pipeError))"
+        Check ($res.applyOk) "обычный пользователь ввёл пароль Atentis ($($res.applyError))"
+        Check (-not $res.canReadSettings) 'но файл настроек (пароль БД) ему недоступен'
+        Check ($res.canReadLogs) 'журналы работы ему доступны для чтения'
+        Wait-Until { (Invoke-Control @{ cmd = 'status' }).status.slots[0].hasPassword } 20 'служба приняла пароль от обычного пользователя'
+        $leak2 = Get-ChildItem $DataDir -Recurse -File | Select-String -SimpleMatch -Pattern $UserSecret -List
+        Check ($null -eq $leak2) 'пароль, введённый обычным пользователем, нигде не сохранён'
+    } finally {
+        net user $testUser /delete 2>&1 | Out-Null
+        Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
     Step 'Авария: процесс убит - служба поднимается сама, настройки на месте, пароль забыт'
     Stop-Process -Name AtentisServer -Force
     Wait-Until { (Get-Service AtentisServer).Status -eq 'Running' -and (Get-Process AtentisServer -ErrorAction SilentlyContinue).Id -ne $pidBefore } 120 'автоматический перезапуск службы'
@@ -140,8 +193,6 @@ try {
     Wait-Until { -not (Get-Service AtentisServer -ErrorAction SilentlyContinue) } 30 'служба удалена'
     Check (-not (Test-Path (Join-Path $InstallDir 'service\AtentisServer.exe'))) 'файлы программы удалены'
     Check (Test-Path $SettingsFile) 'настройки и журналы сохранены (удаляются только вручную)'
-    $groupGone = (net localgroup AtentisServerOperators 2>&1) -join ' '
-    Check ($groupGone -match '(не найден|does not exist|2220)') 'группа операторов удалена'
 
     Write-Host "`nВСЕ ПРОВЕРКИ УСТАНОВЩИКА ПРОЙДЕНЫ" -ForegroundColor Green
     # Последняя нативная команда (net localgroup для уже удалённой группы) оставила ненулевой код - он не должен ронять шаг CI.
