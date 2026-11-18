@@ -158,6 +158,20 @@ public sealed partial class MainViewModel : ObservableObject
                string.Equals(was.Server.Trim(), now.Server, StringComparison.OrdinalIgnoreCase) && was.PublicKeyFile == now.PublicKeyFile;
     }
 
+    private const string DbPasswordRequired =
+        "База данных: вы изменили адрес, порт, имя базы или пользователя - введите пароль базы данных заново " +
+        "(сохранённый пароль не передаётся на новый адрес).";
+
+    /// <summary>Сохранённый пароль БД не отправляется на другой адрес: при смене адреса/порта/базы/пользователя его нужно ввести заново.</summary>
+    private bool DbTargetChangedWithoutPassword(DatabaseSettingsDto db)
+    {
+        var was = _loaded?.Database;
+        if (was is null || !was.HasPassword || !string.IsNullOrEmpty(db.Password)) return false;
+        return !string.Equals(was.Host.Trim(), db.Host, StringComparison.OrdinalIgnoreCase) || was.Port != db.Port ||
+               !string.Equals(was.Database.Trim(), db.Database, StringComparison.Ordinal) ||
+               !string.Equals(was.Username.Trim(), db.Username, StringComparison.Ordinal);
+    }
+
     [RelayCommand]
     private async Task SaveAndConnectAsync()
     {
@@ -168,6 +182,7 @@ public sealed partial class MainViewModel : ObservableObject
         var errors = SettingsValidator.Validate(settings);
         errors.AddRange(SettingsValidator.ValidatePasswords(settings, entered, name =>
             Slots.FirstOrDefault(s => s.Name == name) is { } slot && ServiceKeepsPassword(slot)));
+        if (DbTargetChangedWithoutPassword(settings.Database)) errors.Add(DbPasswordRequired);
         if (errors.Count > 0)
         {
             SetBanner(BannerKind.Error, "Проверьте, пожалуйста, введённые данные:", errors);
@@ -206,6 +221,7 @@ public sealed partial class MainViewModel : ObservableObject
             SetBanner(BannerKind.Error, "Введите пароль пользователя базы данных.");
             return;
         }
+        if (DbTargetChangedWithoutPassword(db)) { SetBanner(BannerKind.Error, DbPasswordRequired); return; }
 
         IsBusy = true;
         try

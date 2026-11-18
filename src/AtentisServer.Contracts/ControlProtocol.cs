@@ -12,9 +12,6 @@ public static class ControlPipe
 {
     public const string Name = "AtentisServer.Control";
 
-    /// <summary>Локальная группа Windows, члены которой могут управлять службой (создаётся установщиком).</summary>
-    public const string OperatorsGroup = "AtentisServerOperators";
-
     public const int MaxMessageBytes = 64 * 1024;
 
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
