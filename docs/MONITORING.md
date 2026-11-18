@@ -22,6 +22,7 @@ Serilog, каталог `%ProgramData%\AtentisServer\logs` (переопреде
 |---|---|
 | `atentis_slot_connected{slot}` | 1 — слот подключён |
 | `atentis_slot_reconnects{slot}` | сколько раз слот пересоздавался |
+| `atentis_slot_waiting_for_password{slot}` | 1 — рынок настроен, но ждёт ввода пароля Atentis (после перезапуска службы/сервера); см. алерт `AtentisWaitingForPassword` |
 | `atentis_table_updates_total{slot,table}`, `atentis_table_last_update_timestamp_seconds` | поток обновлений от Atentis |
 | `atentis_rows_received_total`, `atentis_rows_stored_total` | прочитано / реально записано новых строк |
 | `atentis_rows_skipped_total{slot,table,reason}` | строки, отброшенные из-за некорректных данных |
